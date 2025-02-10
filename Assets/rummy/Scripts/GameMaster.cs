@@ -7,11 +7,15 @@ using rummy.Cards;
 using rummy.UI;
 using rummy.Utility;
 using TMPro;
+using System.Collections;
+using UnityEngine.Networking;
 
 namespace rummy
 {
     public class GameMaster : MonoBehaviour
     {
+        [SerializeField] private RammyApi api;
+        [SerializeField] private BotData[] characters;
         public int PlayerCount = 4; // Set PlayerCount to 4
         public Transform PlayersParent;
         [SerializeField]
@@ -125,6 +129,11 @@ namespace rummy
 
         private Scoreboard Scoreboard;
 
+        private void Awake()
+        {
+            StartCoroutine(api.StartGameRammy());
+            StartCoroutine(api.GetProfile());
+        }
         private void Start()
         {
             QualitySettings.vSyncCount = 0;
@@ -139,6 +148,7 @@ namespace rummy
 
         private void StartGame(bool newGame)
         {
+            StartCoroutine(api.GetProfile());
             Random.InitState(Seed);
             CardStack.CreateCardStack(CardStackType);
 
@@ -180,19 +190,44 @@ namespace rummy
 
             var humanPlayer = Instantiate(HumanPlayerPrefab, PlayersParent).GetComponent<Player>();
             Players.Add(humanPlayer);
-            humanPlayer.SetPlayerName($"Player {1}");
+            
+            humanPlayer.SetPlayerName($"{api.CurrentUserName}");
             //GetComponent<GUIScaler>().AddCanvasScaler(humanPlayer.transform.Find("OutputCanvas").GetComponent<CanvasScaler>());
             //GetComponent<GUIScaler>().AddCanvasScaler(humanPlayer.transform.Find("ShowButtonCanvas").GetComponent<CanvasScaler>());
-
+            Transform avatarTransf = humanPlayer.transform.Find("Avatar");
+            if (avatarTransf != null)
+            {
+                SpriteRenderer spriteRenderer = avatarTransf.GetComponent<SpriteRenderer>();
+                if (spriteRenderer != null)
+                {
+                    
+                }
+            }
 
             // Create 4 Human Players
             for (int i = 0; i < 3; i++)
             {
                 var botPlayer = Instantiate(BotPlayerPrefab, PlayersParent).GetComponent<Player>();
                 Players.Add(botPlayer);
-                botPlayer.SetPlayerName($"Player {i + 1}");
+                //botPlayer.SetPlayerName($"Player {i + 1}");
                 //GetComponent<GUIScaler>().AddCanvasScaler(humanPlayer.transform.Find("OutputCanvas").GetComponent<CanvasScaler>());
                 //GetComponent<GUIScaler>().AddCanvasScaler(humanPlayer.transform.Find("ShowButtonCanvas").GetComponent<CanvasScaler>());
+
+                int randomIndex = Random.Range(0, characters.Length);
+                BotData selectedCharacter = characters[randomIndex];
+
+                botPlayer.SetPlayerName(selectedCharacter.name);
+
+                Transform avatarTransform = botPlayer.transform.Find("Avatar"); // Make sure your child is named "Avatar"
+                if (avatarTransform != null)
+                {
+                    SpriteRenderer spriteRenderer = avatarTransform.GetComponent<SpriteRenderer>();
+                    if (spriteRenderer != null)
+                    {
+                        spriteRenderer.sprite = selectedCharacter.sprite;
+                    }
+                }
+
             }
 
             // Update player positions for the current player count
@@ -210,6 +245,7 @@ namespace rummy
 
             ShowOpponentCards(showOpponentCards);
         }
+
 
         public void NextGame(bool newGame)
         {
@@ -324,6 +360,7 @@ namespace rummy
             else
             {
                 isTurnActive = false;
+                StartCoroutine(api.EndGameRammy(Players[0].PlayerName));
                 TimeOut.Invoke(CurrentPlayer);
                 gameState = GameState.NONE;
                 return;
@@ -344,6 +381,7 @@ namespace rummy
             if (CurrentPlayer.HandCardCount == 0)
             {
                 Scoreboard.AddLine(Players, false);
+                StartCoroutine(api.EndGameRammy(CurrentPlayer.PlayerName));
                 GameOver.Invoke(CurrentPlayer);
                 gameState = GameState.NONE;
                 return;
